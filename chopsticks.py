@@ -5,6 +5,7 @@ from matplotlib.path import Path
 import matplotlib.patches as patches
 import matplotlib.colors as mcolors
 import networkx as nx
+import textwrap
 
 class Hands:
     def __init__(self, a, b):
@@ -60,7 +61,7 @@ class Node:
     def __str__(self):
         turn = "COMPUTER'S TURN" if self.my_turn else "PLAYER'S TURN" 
         return "{} \t Computer: {} \t Player: {} \t Total number of visits: {} \t Number of games won:{}".format(turn, self.own_hands, self.opponent_hands, self.total_num_games, self.num_games_won)
-    
+
     @property
     def score(self):
         if self.total_num_games == 0:
@@ -213,7 +214,11 @@ class Node:
                 cycle = True
             expanded_nodes.append(chosen_node.children[chosen_node_index].state_name)
             chosen_node = chosen_node.children[chosen_node_index]
-        if not cycle:
+        points_won = 0
+        if cycle:
+            # draw
+            points_won = 0.5
+        else:
             # expansion
             if not chosen_node.gameOver():
                 if chosen_node.children is None:
@@ -227,14 +232,10 @@ class Node:
                 # randomly select action 
                 children_nodes = playout_node.getChildrenNodes(nodes)
                 playout_node = children_nodes[random.randrange(len(children_nodes))]
+            # win
+            if playout_node.own_hands.alive():
+                points_won = 1
         # backpropagation
-        points_won = 0
-        # if draw
-        if cycle:
-            points_won = 0.5
-        # else if won
-        elif playout_node.own_hands.alive():
-            points_won = 1
         chosen_node = self
         chosen_node.updateScore(points_won)
         for node_index in path:
@@ -295,20 +296,24 @@ def create_nodes():
                         nodes[str(i) + str(j) + str(k) + str(l) + "P"] = Node(Hands(i, j), Hands(k, l), 0, 0, False)
     return nodes
                         
-def run(numIterations, policy, param, computer_starts=True):
-    nodes = create_nodes()
-    t = 1
-    reward = np.zeros(numIterations + 1)
-    root_node = Node(Hands(1, 1), Hands(1, 1), 0, 0, computer_starts)
-    for i in range(numIterations):
-        # choose action and get reward
-        root_node.run_MCTS(policy, t, param, nodes)
-        reward[t] = root_node.score
-        t += 1
-    return reward 
+# def run(numIterations, policy, param, computer_starts=True):
+#     nodes = create_nodes()
+#     t = 1
+#     reward = np.zeros(numIterations + 1)
+#     root_node = Node(Hands(1, 1), Hands(1, 1), 0, 0, computer_starts)
+#     for i in range(numIterations):
+#         # choose action and get reward
+#         root_node.run_MCTS(policy, t, param, nodes)
+#         reward[t] = root_node.score
+#         t += 1
+#     return reward 
 
-def play(computer_starts=True):
-    nodes = create_nodes()
+def play(trained_nodes=None, computer_starts=True):
+    # if trained nodes not passed in, create nodes
+    if trained_nodes is None:
+        nodes = create_nodes()
+    else:
+        nodes = trained_nodes
     current_node = nodes["1111C"] if computer_starts else nodes["1111P"]
     # play
     print("Starting state:", current_node.getHandsState())
@@ -318,6 +323,7 @@ def play(computer_starts=True):
         print("Player starts first..........")
         current_node.children = current_node.getChildrenNodes(nodes)
     player_turn = not computer_starts
+    t = 1
     while not current_node.gameOver():
         if player_turn:
             move = input("Enter move:")
@@ -328,99 +334,81 @@ def play(computer_starts=True):
             current_node = given_move
             print("After your move:", current_node.getHandsState())
         else:
-            # train
-            t = 1
-            for i in range(1000):
-                # choose action and get reward
-                current_node.run_MCTS(UCB, t, 1.5, nodes)
-                t += 1
+            '''
+            We can either train on the spot or feed in trained nodes
+            We train the nodes on the spot if trained nodes are not passed in
+            '''
+            if trained_nodes is None:
+                for i in range(5000):
+                    # choose action and get reward
+                    current_node.run_MCTS(UCB, t, 1.5, nodes)
+                    t += 1
             for child in current_node.children:
                 print(child.getHandsState(), child.num_games_won, child.total_num_games)
-                # num_games = []
-                # for child in current_node.children:
-                #     if child.total_num_games != 0:
-                #         num_games.append(child.total_num_games)
-                #     elif current_node.my_turn:
-                #         num_games.append(0.001)
-                #     else:
-                #         num_games.append(float('inf'))
-                # Q = np.array([child.score for child in current_node.children])
-                # N = np.array(num_games).astype(float)
-                # score = Q + 15 * np.sqrt(np.math.log(t) * np.reciprocal(N))
-                # print(Q, N,  np.reciprocal(N), score)
-            current_node = current_node.getBestMove()
+            current_node = current_node.getBestMove(score_based=True)
             print("After computer's move:", current_node.getHandsState())
         player_turn = not player_turn
     winner = "COMPUTER" if current_node.own_hands.alive() else "PLAYER"
     print("=========== GAME OVER: {} WINS ===========".format(winner))
 
-def results():
-    T = 1000
-    avg_ucb = np.zeros(T + 1)
-    avg_ucb_2 = np.zeros(T + 1)
-    avg_ucb_3 = np.zeros(T + 1)
+# def collect_points():
+#     T = 1000
+#     avg_ucb = np.zeros(T + 1)
+#     avg_ucb_2 = np.zeros(T + 1)
+#     avg_ucb_3 = np.zeros(T + 1)
 
-    for i in range(20):
+#     for i in range(20):
         
-        ucb = run(T, UCB, 1)
-        ucb_2 = run(T, UCB, 2)
-        ucb_3 = run(T, UCB, 3)
-        avg_ucb += (ucb - avg_ucb) / (i + 1)
-        avg_ucb_2 += (ucb_2 - avg_ucb_2) / (i + 1)
-        avg_ucb_3 += (ucb_3 - avg_ucb_3) / (i + 1)
+#         ucb = run(T, UCB, 1)
+#         ucb_2 = run(T, UCB, 2)
+#         ucb_3 = run(T, UCB, 3)
+#         avg_ucb += (ucb - avg_ucb) / (i + 1)
+#         avg_ucb_2 += (ucb_2 - avg_ucb_2) / (i + 1)
+#         avg_ucb_3 += (ucb_3 - avg_ucb_3) / (i + 1)
 
-    t = np.arange(T + 1)
-    plt.plot(t, avg_ucb, 'r-', label='UCB (1)')
-    plt.plot(t, avg_ucb_2, 'g-', label='UCB (2)')
-    plt.plot(t, avg_ucb_3, 'b-', label='UCB (3)')
-    plt.legend()
-    plt.show()
+#     t = np.arange(T + 1)
+#     plt.plot(t, avg_ucb, 'r-', label='UCB (1)')
+#     plt.plot(t, avg_ucb_2, 'g-', label='UCB (2)')
+#     plt.plot(t, avg_ucb_3, 'b-', label='UCB (3)')
+#     plt.legend()
+#     plt.show()
 
-def getAllOutcomes(nodes, starting_node_name):
-    # receusrive function to help trace all possible paths
-    def drawPath(node, nodes, current_path, paths, end_points):
-        if node.gameOver():
-            return []
-        # if computer starts first
-        if node.my_turn:
-            # given a state, make best move and draw path to new state
-            current_path.append(node.state_name)
-            my_move = node.getBestMove(score_based=True)
-            assert my_move is not None
-            current_path.append(my_move.state_name)
-        else:
-            my_move = node
-        # if move ends in game ending, put as end point
-        if my_move.gameOver():
-            end_points.append((my_move.state_name, "WIN"))
-            paths.append(current_path)
-        # else continue expanding path
-        else:
-            for child in my_move.getChildrenNodes(nodes):
-                # draw lines to all possible oppononent moves
-                updated_path = list(current_path)
-                # if opponent move has led to game ending, put as end point
-                if child.gameOver():
-                    updated_path.append(child.state_name)
-                    end_points.append((child.state_name, "LOSE"))
-                    paths.append(updated_path)
-                # expand path from child state if it has not been explored before
-                elif child.state_name not in current_path:
-                    drawPath(child, nodes, updated_path, paths, end_points)
-                # else child state has been reached before, we have reached a draw
-                else:
-                    updated_path.append(child.state_name)
-                    end_points.append((child.state_name, "DRAW"))
-                    paths.append(updated_path)
-    
-    # collate results and get labels
-    end_points = []
-    all_paths = []
+# recursive function to help trace all possible paths
+def getAllOutcomes(starting_node_name, nodes, current_path):
+    paths = []
     starting_node = nodes[starting_node_name]
-    drawPath(starting_node, nodes, [], all_paths, end_points)
-    return end_points
-
-def getStrategy(nodes, show_move=True):
+    # if state is end state: won. lost or draw
+    if starting_node.gameOver() or starting_node_name in current_path:
+        current_path.append(starting_node_name)
+        paths.append(current_path)
+        # if current_path[0] == "1301C" and not starting_node.gameOver():
+        #     print("DRAW", starting_node_name, current_path)
+        #     for child in nodes["1301C"].getChildrenNodes(nodes):
+        #         print(child)
+        return paths
+    # if computer starts first
+    current_path.append(starting_node_name)
+    if starting_node.my_turn:
+        # given a state, make best move and draw path to new state
+        my_move = starting_node.getBestMove(score_based=True)
+        assert my_move is not None
+        current_path.append(my_move.state_name)
+        # if my move ends in game ending, end current_path
+        if my_move.gameOver():
+            paths.append(current_path)
+            return paths
+    else:
+        my_move = starting_node
+    # continue expanding path
+    for child in my_move.getChildrenNodes(nodes):
+        # draw lines to all possible oppononent moves
+        # if current_path[0] != "0101C":
+            # print("!!!", current_path[0])
+            # print(current_path)
+        paths += getAllOutcomes(child.state_name, nodes, list(current_path))
+    return paths
+    
+def getStrategy(nodes, show_move_only=False):
     # collate results
     print("Preparing results...")
     values = [[] for i in range(15)]
@@ -438,204 +426,39 @@ def getStrategy(nodes, show_move=True):
                         if best_move is None:
                             values[count_actioner].append("-")
                         else:
-                            if show_move:
-                                values[count_actioner].append(str(best_move.own_hands.smaller)+str(best_move.own_hands.larger)+str(best_move.opponent_hands.smaller)+str(best_move.opponent_hands.larger))
-                            else: 
-                                outcomes = getAllOutcomes(nodes, nodes[str(i) + str(j) + str(k) + str(l) + "C"].state_name)
-                                result = "W:" + str(best_move.own_hands.smaller)+str(best_move.own_hands.larger)+str(best_move.opponent_hands.smaller)+str(best_move.opponent_hands.larger) if len(outcomes) > 0 else "-"
-                                for path, outcome in outcomes:
-                                    if outcome == "LOSE":
-                                        result = "-"
+                            if show_move_only: 
+                                result = str(best_move.own_hands.smaller)+str(best_move.own_hands.larger)+str(best_move.opponent_hands.smaller)+str(best_move.opponent_hands.larger)
+                            else:
+                                outcomes = []
+                                all_paths = getAllOutcomes(str(i) + str(j) + str(k) + str(l) + "C", nodes, [])
+                                # W: win, D: draw, L: lose
+                                worst_outcome = "W"
+                                for outcome in all_paths:
+                                    last_node = nodes[outcome.pop()]
+                                    if not last_node.gameOver():
+                                        worst_outcome = "D"
+                                    elif  last_node.own_hands == Hands(0, 0):
+                                        worst_outcome = "L"
                                         break
-                                    elif outcome == "DRAW" and result[0] == "W":
-                                        result = "D:" + str(best_move.own_hands.smaller)+str(best_move.own_hands.larger)+str(best_move.opponent_hands.smaller)+str(best_move.opponent_hands.larger)
-                                values[count_actioner].append(result)
+                                result = worst_outcome + ":" + str(best_move.own_hands.smaller)+str(best_move.own_hands.larger)+str(best_move.opponent_hands.smaller)+str(best_move.opponent_hands.larger)
+                            values[count_actioner].append(result)
                 count_actioner += 1
     # display results
-    row_format ="{:>10}" * (len(receiver_labels) + 1)
+    row_format = "{:>10}" * (len(receiver_labels) + 1)
+    print("{:=^{length}}".format(" Best Moves ", length=(10*(len(receiver_labels)+1))))
+    print(textwrap.TextWrapper(width=(10*(len(receiver_labels)+1))).fill(text=
+        "Column refers to the state of the hands of the actioner i.e. the person making the move while "
+        "the row refers to the state of the hands of the receiver i.e. the person waiting for the opponent to make a move. "
+        "The value inside the table represents the worst possible outcome if moves are made correctly and the best move to make "
+        "e.g.: W:0401 means that the actioner is guaranteed to win if the best moves are made, and the best move the actioner "
+        "can take is to move to the state 0401"
+    ))
     print(row_format.format("", *receiver_labels))
     for actioner, row in zip(actioner_labels, values):
         print(row_format.format(actioner, *row))
 
-def showWinningPath(nodes):
-    # gets coordinate of the node in the display graph
-    def getCoordinate(node):
-        own_coord = node.own_hands.smaller * (5 + (5 - node.own_hands.smaller + 1))/2 + (node.own_hands.larger - node.own_hands.smaller)
-        opponent_coord = node.opponent_hands.smaller * (5 + (5 - node.opponent_hands.smaller + 1))/2 + (node.opponent_hands.larger - node.opponent_hands.smaller)
-        return (own_coord,opponent_coord)
-
-    # receusrive function to help trace all possible paths
-    def drawPath(node, nodes, current_path, paths, end_points):
-        assert not node.gameOver(), "No path to draw -- game already over"
-        # if computer starts first
-        if node.my_turn:
-            # given a state, make best move and draw path to new state
-            current_path.append(node.state_name)
-            my_move = node.getBestMove(score_based=True)
-            assert my_move is not None
-            current_path.append(my_move.state_name)
-        else:
-            my_move = node
-        # if move ends in game ending, put as end point
-        if my_move.gameOver():
-            end_points.append((my_move.state_name, "WIN"))
-            paths.append(current_path)
-        # else continue expanding path
-        else:
-            for child in my_move.getChildrenNodes(nodes):
-                # draw lines to all possible oppononent moves
-                updated_path = list(current_path)
-                # if opponent move has led to game ending, put as end point
-                if child.gameOver():
-                    updated_path.append(child.state_name)
-                    end_points.append((child.state_name, "LOSE"))
-                    paths.append(updated_path)
-                # expand path from child state if it has not been explored before
-                elif child.state_name not in current_path:
-                    drawPath(child, nodes, updated_path, paths, end_points)
-                # else child state has been reached before, we have reached a draw
-                else:
-                    updated_path.append(child.state_name)
-                    end_points.append((child.state_name, "DRAW"))
-                    paths.append(updated_path)
-    
-    # collate results and get labels
-    print("Preparing results...")
-    actioner_labels = []
-    receiver_labels = []
-    end_points = []
-    all_paths = []
-    starting_node = nodes["1111C"]
-    drawPath(starting_node, nodes, [], all_paths, end_points)
-    for i in range(5):
-        for j in range(i, 5):
-            actioner_labels.append(str(i) + ", "  + str(j))
-            receiver_labels.append(str(i) + ", "  + str(j))
-    # display results
-    print("Displaying results...")
-    fig, ax = plt.subplots()
-    win_x = []
-    for path in all_paths:
-        my_turn = starting_node.my_turn
-        tail = getCoordinate(nodes[path[0]])
-        for i in range(1, len(path)):
-            head = getCoordinate(nodes[path[i]])
-            if my_turn:
-                ax.add_patch(patches.FancyArrow(tail[0], tail[1], head[0] - tail[0], head[1] - tail[1], length_includes_head=True, head_width=0.2, color="orange"))
-            else:
-                ax.add_patch(patches.FancyArrow(tail[0], tail[1], head[0] - tail[0], head[1] - tail[1], length_includes_head=True, head_width=0.2, color="gray"))
-            tail = head
-            my_turn = not my_turn
-    win_y = []
-    draw_x = []
-    draw_y = []
-    lose_x = []
-    lose_y = []
-    for state, outcome in end_points:
-        (x, y) = getCoordinate(nodes[state])
-        if outcome == "WIN":
-            win_x.append(x)
-            win_y.append(y)
-        elif outcome == "LOSE":
-            lose_x.append(x)
-            lose_y.append(y)
-        elif outcome == "DRAW":
-            draw_x.append(x)
-            draw_y.append(y)
-    plt.scatter(win_x, win_y, color='g')
-    plt.scatter(draw_x, draw_y, color='b')
-    plt.scatter(lose_x, lose_y, color='r')
-    ax.set_xticks(np.arange(len(actioner_labels)))
-    ax.set_yticks(np.arange(len(receiver_labels)))
-    ax.set_xticklabels(actioner_labels)
-    ax.set_yticklabels(receiver_labels)
-    plt.show()
-
-def showWinningPath2(nodes):    
-    def getCoordinate(node):
-        own_coord = node.own_hands.smaller * (5 + (5 - node.own_hands.smaller + 1))/2 + (node.own_hands.larger - node.own_hands.smaller)
-        opponent_coord = node.opponent_hands.smaller * (5 + (5 - node.opponent_hands.smaller + 1))/2 + (node.opponent_hands.larger - node.opponent_hands.smaller)
-        return (own_coord,opponent_coord)
-    
-    def drawPath(node, nodes, current_path, paths, end_points):
-        # given a state, make best move and draw path to new state
-        assert not node.gameOver(), "No path to draw -- game already over"
-        best_move = node.getBestMove()
-        assert best_move is not None
-        current_path.append(getCoordinate(node))
-        # if move ends in game ending, put as end point
-        if best_move.gameOver():
-            end_points.append((getCoordinate(best_move), "WIN"))
-            paths.append(current_path)
-        # else continue expanding path
-        else:
-            for child in best_move.getChildrenNodes(nodes):
-                # draw lines to all possible oppononent moves
-                updated_path = list(current_path)
-                updated_path.append(getCoordinate(child))
-                # if opponent move has led to game ending, put as end point
-                if child.gameOver():
-                    end_points.append((getCoordinate(child), "LOSE"))
-                    paths.append(updated_path)
-                # expand path from child state if it has not been explored before
-                elif getCoordinate(child) not in current_path:
-                    drawPath(child, nodes, updated_path, paths, end_points)
-                # else child state has been reached before, we have reached a draw
-                else:
-                    end_points.append((getCoordinate(child), "DRAW"))
-                    paths.append(updated_path)
-
-    # collate results and get labels
-    print("Preparing results...")
-    actioner_labels = []
-    receiver_labels = []
-    end_points = []
-    all_paths = []
-    starting_node = nodes["1111C"]
-    drawPath(starting_node, nodes, [], all_paths, end_points)
-    for i in range(5):
-        for j in range(i, 5):
-                actioner_labels.append(str(i) + ", "  + str(j))
-                receiver_labels.append(str(i) + ", "  + str(j))
-    # display results
-    print("Displaying results...")
-    fig, ax = plt.subplots()
-    colours_available = list(mcolors.CSS4_COLORS.values())
-    colour_index = 0
-    for path in all_paths:
-        tail = path[0]
-        colour = colours_available[colour_index]
-        for i in range(1, len(path)):
-            head = path[i]
-            ax.add_patch(patches.FancyArrow(tail[0], tail[1], head[0] - tail[0], head[1] - tail[1], length_includes_head=True, head_width=0.2, color=colour))
-            tail = head
-        colour_index = (colour_index + 1) % len(colours_available)
-    win_x = []
-    win_y = []
-    draw_x = []
-    draw_y = []
-    lose_x = []
-    lose_y = []
-    for point, state in end_points:
-        if state == "WIN":
-            win_x.append(point[0])
-            win_y.append(point[1])
-        elif state == "LOSE":
-            lose_x.append(point[0])
-            lose_y.append(point[1])
-        elif state == "DRAW":
-            draw_x.append(point[0])
-            draw_y.append(point[1])
-    plt.scatter(win_x, win_y, color='g')
-    plt.scatter(draw_x, draw_y, color='b')
-    plt.scatter(lose_x, lose_y, color='r')
-    ax.set_xticks(np.arange(len(actioner_labels)))
-    ax.set_yticks(np.arange(len(receiver_labels)))
-    ax.set_xticklabels(actioner_labels)
-    ax.set_yticklabels(receiver_labels)
-    plt.show()
-
-def showWinningPath3(nodes):
+        
+def showAllOutcomes(nodes, starting_node="1111C"):
     
     def getCoordinate(node):
         player = "C" if node.my_turn else "P"
@@ -656,6 +479,10 @@ def showWinningPath3(nodes):
         if my_move.gameOver():
             end_points.append((getCoordinate(my_move), "WIN"))
             paths.append(current_path)
+        # elif my_move.state_name in current_path:
+        #     print(current_path, my_move.state_name)
+        #     end_points.append((getCoordinate(my_move), "DRAW"))
+        #     paths.append(current_path)
         # else continue expanding path
         else:
             for child in my_move.getChildrenNodes(nodes):
@@ -679,7 +506,7 @@ def showWinningPath3(nodes):
     print("Preparing results...")
     end_points = []
     all_paths = []
-    starting_node = nodes["1111C"]
+    starting_node = nodes[starting_node]
     drawPath(starting_node, nodes, [], all_paths, end_points)
     # display results
     print("Displaying results...")
@@ -715,7 +542,7 @@ def showWinningPath3(nodes):
     # print(current_set_2211)
     # print(current_set_1311)
     while True:
-        index = input("Enter the index of the state to view all paths leading to that state (or 'exit' to exit):")
+        index = input("Enter the index of the state to view all paths leading to that state (or 'exit' to quit):")
         if index == "exit":
             break
         final_state, outcome = outcomes[int(index)-1]
@@ -728,150 +555,26 @@ def showWinningPath3(nodes):
             elif outcome == "LOSE" and final_state == last_state:
                 print(path)
 
+def get_trained_nodes():
+    nodes = create_nodes()
+    # train
+    print("Training...")
+    t = 1
+    for key, value in nodes.items():
+        if key[4] == "C" and not value.gameOver():
+            current_node = value
+            for i in range(1000):
+                current_node.run_MCTS(UCB, t, 1.5, nodes)
+                t += 1
+    return nodes
 
-# def showGraph(nodes):
-#     ''' Taken from https://stackoverflow.com/questions/29586520/can-one-get-hierarchical-graphs-from-networkx-with-python-3/29597209'''
-#     def hierarchy_pos(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5 ):
-#         '''If there is a cycle that is reachable from root, then result will not be a hierarchy.
+# collect_points()
 
-#         G: the graph
-#         root: the root node of current branch
-#         width: horizontal space allocated for this branch - avoids overlap with other branches
-#         vert_gap: gap between levels of hierarchy
-#         vert_loc: vertical location of root
-#         xcenter: horizontal location of root
-#         '''
-
-#         def h_recur(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5, 
-#                     pos = None, parent = None, parsed = [] ):
-#             if(root not in parsed):
-#                 parsed.append(root)
-#                 if pos == None:
-#                     pos = {root:(xcenter,vert_loc)}
-#                 else:
-#                     pos[root] = (xcenter, vert_loc)
-#                 neighbors = list(G.neighbors(root))
-#                 if parent != None:
-#                     neighbors.remove(parent)
-#                 if len(neighbors)!=0:
-#                     dx = width/len(neighbors) 
-#                     nextx = xcenter - width/2 - dx/2
-#                     for neighbor in neighbors:
-#                         nextx += dx
-#                         pos = h_recur(G,neighbor, width = dx, vert_gap = vert_gap, 
-#                                             vert_loc = vert_loc-vert_gap, xcenter=nextx, pos=pos, 
-#                                             parent = root, parsed = parsed)
-#             return pos
-
-#         return h_recur(G, root, width, vert_gap, vert_loc, xcenter)
-#     # receusrive function to help trace all possible paths
-#     def drawPath(node, nodes, current_path, paths, end_points):
-#         assert not node.gameOver(), "No path to draw -- game already over"
-#         # if computer starts first
-#         if node.my_turn:
-#             # given a state, make best move and draw path to new state
-#             current_path.append(node.state_name)
-#             my_move = node.getBestMove(score_based=True)
-#             assert my_move is not None
-#             current_path.append(my_move.state_name)
-#         else:
-#             my_move = node
-#         # if move ends in game ending, put as end point
-#         if my_move.gameOver():
-#             end_points.append((my_move.state_name, "WIN"))
-#             paths.append(current_path)
-#         # else continue expanding path
-#         else:
-#             for child in my_move.getChildrenNodes(nodes):
-#                 # draw lines to all possible oppononent moves
-#                 updated_path = list(current_path)
-#                 # if opponent move has led to game ending, put as end point
-#                 if child.gameOver():
-#                     updated_path.append(child.state_name)
-#                     end_points.append((child.state_name, "LOSE"))
-#                     paths.append(updated_path)
-#                 # expand path from child state if it has not been explored before
-#                 elif child.state_name not in current_path:
-#                     drawPath(child, nodes, updated_path, paths, end_points)
-#                 # else child state has been reached before, we have reached a draw
-#                 else:
-#                     # updated_path.append(child.state_name)
-#                     end_points.append((child.state_name, "DRAW"))
-#                     paths.append(updated_path)
-    
-#     # collate results and get labels
-#     print("Preparing results...")
-#     actioner_labels = []
-#     receiver_labels = []
-#     end_points = []
-#     all_paths = []
-#     starting_node = nodes["1111C"]
-#     drawPath(starting_node, nodes, [], all_paths, end_points)
-#     for i in range(5):
-#         for j in range(i, 5):
-#             actioner_labels.append(str(i) + ", "  + str(j))
-#             receiver_labels.append(str(i) + ", "  + str(j))
-#     # display results
-#     print("Displaying results...")
-#     fig, ax = plt.subplots()
-#     win_x = []
-#     G = nx.Graph()
-#     for path in all_paths:
-#         my_turn = starting_node.my_turn
-#         tail_node = nodes[path[0]]
-#         tail = str(tail_node.own_hands.smaller)+str(tail_node.own_hands.larger)+str(tail_node.opponent_hands.smaller)+str(tail_node.opponent_hands.larger)
-#         for i in range(1, len(path)): 
-#             head_node = nodes[path[i]]
-#             head = str(head_node.own_hands.smaller)+str(head_node.own_hands.larger)+str(head_node.opponent_hands.smaller)+str(head_node.opponent_hands.larger)
-#             G.add_node(tail)
-#             G.add_node(head)
-#             if my_turn:
-#                 G.add_edge(tail, head, color="orange")
-#             else:
-#                 G.add_edge(tail, head, color="gray")
-#             tail = head
-#             my_turn = not my_turn
-#     # win_y = []
-#     # draw_x = []
-#     # draw_y = []
-#     # lose_x = []
-#     # lose_y = []
-#     # for state, outcome in end_points:
-#     #     (x, y) = getCoordinate(nodes[state])
-#     #     if outcome == "WIN":
-#     #         win_x.append(x)
-#     #         win_y.append(y)
-#     #     elif outcome == "LOSE":
-#     #         lose_x.append(x)
-#     #         lose_y.append(y)
-#     #     elif outcome == "DRAW":
-#     #         draw_x.append(x)
-#     #         draw_y.append(y)
-
-#     # nx.draw_circular(DG, with_labels=True)
-#     # nx.draw(G, pos=nx.nx_agraph.graphviz_layout(G, prog="dot"), with_labels=True, node_size=1000)
-#     pos = hierarchy_pos(G, "1111", vert_gap=2.5)    
-#     nx.draw(G, pos=pos, with_labels=True)
-#     plt.show()
-
-
+nodes = get_trained_nodes()
+# play(nodes)
 # play()
-# results()
-nodes = create_nodes()
-# train
-print("Training...")
-t = 1
-for key, value in nodes.items():
-    if key[4] == "C" and not value.gameOver():
-        current_node = value
-        for i in range(1000):
-            current_node.run_MCTS(UCB, t, 1.5, nodes)
-            t += 1
-# showWinningPath(nodes)
-
-# getStrategy(nodes, show_move=False)
-# showWinningPath3(nodes)
-showGraph(nodes)
+# getStrategy(nodes)
+showAllOutcomes(nodes, "1111P")
 
 # def test():
 #     nodes = create_nodes()
