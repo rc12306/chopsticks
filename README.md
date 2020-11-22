@@ -23,12 +23,14 @@ The rules of the games are as follows:
 * Actioner: the player who has the current turn i.e. the player making the move
 * Receiver: the player who does not have the current turn i.e. the player waiting for opponent to make a move 
 
+*These terms are used to help get the children nodes i.e. possible moves from the node; Look at function `getChildrenNodes()`*
+
 ## MCTS
 ## State Representation
-The state of the game is represented by 4 numbers and a letter ('C' or 'P'): the letter 'C' represents that the computer's turn while 'P' represents player's turn. The numbers represents the number of fingers on the players' hands. The first two represent the hand configuration for the actioner while the last two represent the hand configuration for the receiver. Since the state is not dependent on the side of the hand i.e. 2 fingers on the left hand and 3 fingers on the right hand is the same state as 2 fingers on the right hand and 3 fingers on the left hand, the pair of numbers representing the hand configuration is ordered numerically by convention. Below are some examples to illustrate this more clearly:
+The state of the game is represented by 4 numbers and a letter ('C' or 'P'): the letter 'C' represents that the computer's turn while 'P' represents player's turn. The numbers represents the number of fingers on the players' hands. The first two represent the hand configuration for the computer while the last two represent the hand configuration for the player. Since the state is not dependent on the side of the hand (i.e. 2 fingers on the left hand and 3 fingers on the right hand is the same state as 2 fingers on the right hand and 3 fingers on the left hand), the pair of numbers representing the hand configuration is ordered numerically by convention. Below are some examples to illustrate this more clearly:
 
 * `1322C`: Computer has 1 and 3 fingers; Player has 2 fingers on each hand; Computer to make a move
-* `0133P`: Player has 1 finger on one hand, other hand is dead; Computer has 3 fingers on each hand; Player to make a move
+* `0133P`: Computer has 1 finger on one hand, other hand is dead; Player has 3 fingers on each hand; Player to make a move
 * `0003C`: Computer has no fingers left; Player has 3 fingers on one hand, other hand is dead; Game over since computer has no fingers left by default
 
 ## Hands

@@ -38,15 +38,15 @@ class Hands:
         return "Hands ({}, {})".format(self.smaller, self.larger)
 
 class Node:
-    def __init__(self, actioner, receiver, num_games_won, total_num_games, my_turn):
+    def __init__(self, own_hands, opponent_hands, num_games_won, total_num_games, my_turn):
         self.my_turn = my_turn
-        self.actioner = actioner
-        self.receiver = receiver
+        self.own_hands = own_hands
+        self.opponent_hands = opponent_hands
         self.num_games_won = num_games_won
         self.total_num_games = total_num_games
         self.children = None
         player = "C" if my_turn else "P"
-        self.state_name = str(actioner.smaller)+str(actioner.larger)+str(receiver.smaller)+str(receiver.larger)+player
+        self.state_name = str(own_hands.smaller)+str(own_hands.larger)+str(opponent_hands.smaller)+str(opponent_hands.larger)+player
 
 
     def __eq__(self, value):
@@ -75,13 +75,6 @@ class Node:
             return self.own_hands
         else:
             return self.opponent_hands
-    
-    @actioner.setter
-    def actioner(self, new_hands):
-        if self.my_turn:
-            self.own_hands = new_hands
-        else:
-            self.opponent_hands = new_hands
 
     # Receiver refers to the hands of the player that iw waiting for the opponent to make a move
     @property
@@ -90,13 +83,6 @@ class Node:
             return self.opponent_hands
         else:
             return self.own_hands
-    
-    @receiver.setter
-    def receiver(self, new_hands):
-        if self.my_turn:
-            self.opponent_hands = new_hands
-        else:
-            self.own_hands = new_hands
 
     def updateScore(self, points_won):
         self.total_num_games += 1
@@ -106,6 +92,15 @@ class Node:
 
     def gameOver(self):
         return not self.own_hands.alive() or not self.opponent_hands.alive()
+
+    @staticmethod
+    def getStateName(actioner, receiver, my_turn):
+        if my_turn:
+            # computer is actioner
+            return str(actioner.smaller)+str(actioner.larger)+str(receiver.smaller)+str(receiver.larger)+"C"
+        else:
+            # computer is receiver
+            return str(receiver.smaller)+str(receiver.larger)+str(actioner.smaller)+str(actioner.larger)+"P"
 
     def getChildrenNodes(self, nodes):
         if self.gameOver():
@@ -130,42 +125,42 @@ class Node:
             actioner_new_hands.addFingers(self.actioner.smaller, False)
             receiver_new_hands = Hands(self.receiver.smaller, self.receiver.larger)
             # print("Add A to B", actioner_new_hands, receiver_new_hands)
-            legal_moves.append(nodes[str(receiver_new_hands.smaller)+str(receiver_new_hands.larger)+str(actioner_new_hands.smaller)+str(actioner_new_hands.larger)+player])
+            legal_moves.append(nodes[Node.getStateName(receiver_new_hands, actioner_new_hands, not self.my_turn)])
         # Move 2: Add B to A
         if self.actioner.smaller != 0 and self.actioner.larger != 0:
             actioner_new_hands = Hands(self.actioner.smaller, self.actioner.larger)
             actioner_new_hands.addFingers(self.actioner.larger, True)
             receiver_new_hands = Hands(self.receiver.smaller, self.receiver.larger)
             # print("Add B to A", actioner_new_hands, receiver_new_hands)
-            legal_moves.append(nodes[str(receiver_new_hands.smaller)+str(receiver_new_hands.larger)+str(actioner_new_hands.smaller)+str(actioner_new_hands.larger)+player])
+            legal_moves.append(nodes[Node.getStateName(receiver_new_hands, actioner_new_hands, not self.my_turn)])
         # Move 3: Add A to opponent's A
         if self.actioner.smaller != 0 and self.receiver.smaller != 0:
             actioner_new_hands = Hands(self.actioner.smaller, self.actioner.larger)
             receiver_new_hands = Hands(self.receiver.smaller, self.receiver.larger)
             receiver_new_hands.addFingers(self.actioner.smaller, True)
             # print("Add A to opponent's A", actioner_new_hands, receiver_new_hands)
-            legal_moves.append(nodes[str(receiver_new_hands.smaller)+str(receiver_new_hands.larger)+str(actioner_new_hands.smaller)+str(actioner_new_hands.larger)+player])
+            legal_moves.append(nodes[Node.getStateName(receiver_new_hands, actioner_new_hands, not self.my_turn)])
         # Move 4: Add A to opponent's B
         if self.actioner.smaller != 0 and self.receiver.larger != 0:
             actioner_new_hands = Hands(self.actioner.smaller, self.actioner.larger)
             receiver_new_hands = Hands(self.receiver.smaller, self.receiver.larger)
             receiver_new_hands.addFingers(self.actioner.smaller, False)
             # print("Add A to opponent's B", actioner_new_hands, receiver_new_hands)
-            legal_moves.append(nodes[str(receiver_new_hands.smaller)+str(receiver_new_hands.larger)+str(actioner_new_hands.smaller)+str(actioner_new_hands.larger)+player])
+            legal_moves.append(nodes[Node.getStateName(receiver_new_hands, actioner_new_hands, not self.my_turn)])
         # Move 5: Add B to opponent's A
         if self.actioner.larger != 0 and self.receiver.smaller != 0:
             actioner_new_hands = Hands(self.actioner.smaller, self.actioner.larger)
             receiver_new_hands = Hands(self.receiver.smaller, self.receiver.larger)
             receiver_new_hands.addFingers(self.actioner.larger, True)
             # print("Add B to opponent's A", actioner_new_hands, receiver_new_hands)
-            legal_moves.append(nodes[str(receiver_new_hands.smaller)+str(receiver_new_hands.larger)+str(actioner_new_hands.smaller)+str(actioner_new_hands.larger)+player])
+            legal_moves.append(nodes[Node.getStateName(receiver_new_hands, actioner_new_hands, not self.my_turn)])
         # Move 6: Add B to opponent's B
         if self.actioner.larger != 0 and self.receiver.larger != 0:
             actioner_new_hands = Hands(self.actioner.smaller, self.actioner.larger)
             receiver_new_hands = Hands(self.receiver.smaller, self.receiver.larger)
             receiver_new_hands.addFingers(self.actioner.larger, False)
             # print("Add B to opponent's B", actioner_new_hands, receiver_new_hands)
-            legal_moves.append(nodes[str(receiver_new_hands.smaller)+str(receiver_new_hands.larger)+str(actioner_new_hands.smaller)+str(actioner_new_hands.larger)+player])
+            legal_moves.append(nodes[Node.getStateName(receiver_new_hands, actioner_new_hands, not self.my_turn)])
         # Move 7: Transfer some from B to A (but without reversal/killing own hand)
         # if self.actioner.smaller != 0 and self.actioner.larger != 0:
         receiver_new_hands = Hands(self.receiver.smaller, self.receiver.larger)
@@ -175,7 +170,7 @@ class Node:
             if not (A == self.actioner.larger and B == self.actioner.smaller) and A <= 4: # no reversal and no killing
                 actioner_new_hands = Hands(A, B)
                 # print("Transfer some from B to A (but without reversal/killing own hand)", actioner_new_hands, receiver_new_hands)
-                legal_moves.append(nodes[str(receiver_new_hands.smaller)+str(receiver_new_hands.larger)+str(actioner_new_hands.smaller)+str(actioner_new_hands.larger)+player])
+                legal_moves.append(nodes[Node.getStateName(receiver_new_hands, actioner_new_hands, not self.my_turn)])
         # getting unique states 
         set_moves = []
         for move in legal_moves:
@@ -262,8 +257,6 @@ class Node:
         for child in self.children:
             if child.own_hands.smaller == int(new_state[0]) and child.own_hands.larger == int(new_state[1]) and child.opponent_hands.smaller == int(new_state[2]) and child.opponent_hands.larger == int(new_state[3]):
                 return child
-        for child in self.children:
-            print(child.getHandsState())
         return None
 
 def UCB(children, t, c, max_agent):
@@ -429,12 +422,11 @@ def getStrategy(nodes, show_move_only=False):
                             if show_move_only: 
                                 result = str(best_move.own_hands.smaller)+str(best_move.own_hands.larger)+str(best_move.opponent_hands.smaller)+str(best_move.opponent_hands.larger)
                             else:
-                                outcomes = []
                                 all_paths = getAllOutcomes(str(i) + str(j) + str(k) + str(l) + "C", nodes, [])
                                 # W: win, D: draw, L: lose
                                 worst_outcome = "W"
-                                for outcome in all_paths:
-                                    last_node = nodes[outcome.pop()]
+                                for path in all_paths:
+                                    last_node = nodes[path[-1]]
                                     if not last_node.gameOver():
                                         worst_outcome = "D"
                                     elif  last_node.own_hands == Hands(0, 0):
@@ -460,54 +452,19 @@ def getStrategy(nodes, show_move_only=False):
         
 def showAllOutcomes(nodes, starting_node="1111C"):
     
-    def getCoordinate(node):
-        player = "C" if node.my_turn else "P"
-        return str(node.own_hands.smaller) + str(node.own_hands.larger) + str(node.opponent_hands.smaller) + str(node.opponent_hands.larger) + player
-
-    def drawPath(node, nodes, current_path, paths, end_points):
-        assert not node.gameOver(), "No path to draw -- game already over"
-        # if computer starts first
-        if node.my_turn:
-            # given a state, make best move and draw path to new state
-            current_path.append(getCoordinate(node))
-            my_move = node.getBestMove(score_based=True)
-            assert my_move is not None
-            current_path.append(getCoordinate(my_move))
-        else:
-            my_move = node
-        # if move ends in game ending, put as end point
-        if my_move.gameOver():
-            end_points.append((getCoordinate(my_move), "WIN"))
-            paths.append(current_path)
-        # elif my_move.state_name in current_path:
-        #     print(current_path, my_move.state_name)
-        #     end_points.append((getCoordinate(my_move), "DRAW"))
-        #     paths.append(current_path)
-        # else continue expanding path
-        else:
-            for child in my_move.getChildrenNodes(nodes):
-                # draw lines to all possible oppononent moves
-                updated_path = list(current_path)
-                # if opponent move has led to game ending, put as end point
-                if child.gameOver():
-                    updated_path.append(getCoordinate(child))
-                    end_points.append((getCoordinate(child), "LOSE"))
-                    paths.append(updated_path)
-                # expand path from child state if it has not been explored before
-                elif getCoordinate(child) not in current_path:
-                    drawPath(child, nodes, updated_path, paths, end_points)
-                # else child state has been reached before, we have reached a draw
-                else:
-                    updated_path.append(getCoordinate(child))
-                    end_points.append((getCoordinate(child), "DRAW"))
-                    paths.append(updated_path)
-    
     # collate results and get labels
     print("Preparing results...")
+    all_paths = getAllOutcomes(starting_node, nodes, [])
+    end_points = [path[-1] for path in all_paths]
     end_points = []
-    all_paths = []
-    starting_node = nodes[starting_node]
-    drawPath(starting_node, nodes, [], all_paths, end_points)
+    for path in all_paths:
+        last_node = nodes[path[-1]]
+        if not last_node.gameOver():
+            end_points.append((last_node.state_name, "DRAW"))
+        elif last_node.own_hands == Hands(0, 0):
+            end_points.append((last_node.state_name, "LOSE"))
+        else:
+            end_points.append((last_node.state_name, "WIN"))
     # display results
     print("Displaying results...")
     outcomes = list(set(end_points))
@@ -545,14 +502,10 @@ def showAllOutcomes(nodes, starting_node="1111C"):
         index = input("Enter the index of the state to view all paths leading to that state (or 'exit' to quit):")
         if index == "exit":
             break
-        final_state, outcome = outcomes[int(index)-1]
+        final_state, _ = outcomes[int(index)-1]
         for path in all_paths:
-            last_state = path[len(path)-1]
-            if outcome == "DRAW" and final_state == last_state:
-                print(path)
-            elif outcome == "WIN" and final_state == last_state:
-                print(path)
-            elif outcome == "LOSE" and final_state == last_state:
+            last_state = path[-1]
+            if final_state == last_state:
                 print(path)
 
 def get_trained_nodes():
@@ -574,7 +527,8 @@ nodes = get_trained_nodes()
 # play(nodes)
 # play()
 # getStrategy(nodes)
-showAllOutcomes(nodes, "1111P")
+showAllOutcomes(nodes, "1111C")
+# play(nodes)
 
 # def test():
 #     nodes = create_nodes()
